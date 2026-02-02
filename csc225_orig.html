@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Structures & Algorithms Exam</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <style>
+        .option-card:hover { border-color: #3b82f6; background-color: #eff6ff; }
+        .selected { border-color: #2563eb !important; background-color: #dbeafe !important; }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-select { user-select: none; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans no-select">
+
+    <header class="bg-white border-b sticky top-0 z-10 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-blue-800">University CS Exam Portal</h1>
+                <p class="text-sm text-gray-500">Comprehensive Assessment</p>
+            </div>
+            <div id="timer" class="text-lg font-mono font-bold bg-red-50 text-red-600 px-4 py-1 rounded-full border border-red-200">
+                00:00
+            </div>
+        </div>
+    </header>
+
+    <main id="app-container" class="max-w-4xl mx-auto px-4 py-8">
+        <div id="login-screen" class="bg-white p-8 rounded-xl shadow-md max-w-md mx-auto">
+            <h2 class="text-2xl font-bold mb-6 text-center">Student Login</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Full Name</label>
+                    <input type="text" id="student-name" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Student ID</label>
+                    <input type="text" id="student-id" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <button onclick="startExam()" class="w-full bg-blue-600 text-white py-3 rounded-md font-bold hover:bg-blue-700 transition">Begin Exam</button>
+            </div>
+        </div>
+
+        <div id="exam-screen" class="hidden space-y-8">
+            <div id="questions-list" class="space-y-6"></div>
+            <div class="pt-8 border-t flex flex-col items-center">
+                <button onclick="showSubmitModal()" class="bg-green-600 text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-green-700 shadow-lg transition">
+                    Finish and Submit
+                </button>
+            </div>
+        </div>
+
+        <div id="result-screen" class="hidden bg-white p-8 rounded-xl shadow-md text-center max-w-2xl mx-auto">
+            <div id="grading-status">
+                <div class="loading-spinner mx-auto mb-4"></div>
+                <h2 class="text-2xl font-bold">Grading Exam...</h2>
+            </div>
+            <div id="report-container" class="hidden text-left">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-3xl font-bold text-blue-700">Result Summary</h2>
+                    <div id="score-badge" class="text-2xl font-bold px-4 py-2 bg-blue-100 rounded-lg">--%</div>
+                </div>
+                <div id="email-status-msg" class="mb-4 p-3 rounded-md text-sm font-medium"></div>
+                <div id="ai-feedback" class="prose max-w-none text-gray-700 mb-6 bg-gray-50 p-4 rounded-lg italic"></div>
+                <button onclick="copyReport()" class="w-full bg-blue-600 text-white py-3 rounded-md font-bold hover:bg-blue-700">Copy Backup Report</button>
+                <div id="copy-msg" class="hidden mt-2 text-center text-green-600 text-sm font-bold">Copied!</div>
+            </div>
+        </div>
+    </main>
+
+    <div id="submit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg max-w-sm w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Submit Results?</h3>
+            <p class="text-gray-600 mb-6">Confirm submission to professor.</p>
+            <div class="flex gap-4">
+                <button onclick="closeSubmitModal()" class="flex-1 px-4 py-2 border rounded-md">Cancel</button>
+                <button onclick="submitExam()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md font-bold">Submit Now</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; 
+        const PROFESSOR_EMAIL = "mabdelat@providence.edu";
+        const EMAILJS_PUBLIC_KEY = "HVTP-mOXwuHhVYqOG"; 
+        const EMAILJS_SERVICE_ID = "service_xq3pvyn";
+        const EMAILJS_TEMPLATE_ID = "template_bezwqcg";
+
+        // Updated encodedAnswers for the 65 specific questions.
+        // Answer Key: 1,1,2,3,2,2,0,1,0,1,2,2,2,1,1,1,1,1,2,1,2,1,1,2,"False",1,0,0,2,1,2,1,2,1,1,2,1,2,1,1,2,2,1,"True",1,0,1,"False",2,0,1,2,"True",1,2,2,2,3,2,2,1,0,1,1,0
+        const encodedAnswers = "eyJzZXNzaW9uS2V5IjogIjY1NDMyIiwgImFuc3dlcnMiOiBbMSwgMSwgMiwgMywgMiwgMiwgMCwgMSwgMCwgMSwgMiwgMiwgMiwgMSwgMSwgMSwgMSwgMSwgMiwgMSwgMiwgMSwgMSwgMiwgIkZhbHNlIiwgMSwgMCwgMCwgMiwgMSwgMiwgMSwgMiwgMSwgMSwgMiwgMSwgMiwgMSwgMSwgMiwgMiwgMSwgIlRydWUiLCAxLCAwLCAxLCAiRmFsc2UiLCAyLCAwLCAxLCAyLCAiVHJ1ZSIsIDEsIDIsIDIsIDIsIDMsIDIsIDIsIDEsIDAsIDEsIDEsIDBdIH0=";
+
+        function getAnswerList() {
+            try { return JSON.parse(atob(encodedAnswers)).answers; } catch(e) { return []; }
+        }
+
+        (function(){ if(EMAILJS_PUBLIC_KEY) emailjs.init(EMAILJS_PUBLIC_KEY); })();
+
+        // The specific 65 questions requested
+        const examQuestions = [
+            { id: 22, type: "mc", q: "Which of the following is a key difference between a Deque and a standard Queue?", options: ["A Deque only allows insertion at the front.", "A Deque allows insertion and deletion at both the front and the rear.", "A Queue is faster than a Deque in all scenarios.", "Deques cannot be implemented using arrays."] },
+            { id: 23, type: "mc", q: "When implementing a Hash Table, what is 'Double Hashing'?", options: ["Using two different hash tables to store the same data.", "Applying a second hash function to the key when a collision occurs to determine the step size.", "Hashing the key twice before placing it in the first available slot.", "A method used only in Singly Linked Lists to prevent loops."] },
+            { id: 25, type: "mc", q: "What is the result of 15 % 4?", options: ["1", "2", "3", "0"] },
+            { id: 27, type: "mc", q: "Which of the following Big O complexities represents the slowest growth (fastest execution) as N becomes very large?", options: ["O(N^2)", "O(N log N)", "O(2^N)", "O(N)"] },
+            { id: 28, type: "mc", q: "Code Analysis: What does the following C++ code represent? struct Node { int data; Node* next; Node* prev; };", options: ["A Singly Linked List node", "A Binary Tree node", "A Doubly Linked List node", "A Hash Table bucket"] },
+            { id: 29, type: "mc", q: "Which sorting algorithm divides the array into two halves, recursively sorts them, and then joins them back together?", options: ["Selection Sort", "Bubble Sort", "Merge Sort", "Insertion Sort"] },
+            { id: 30, type: "mc", q: "What is the main disadvantage of a Singly Linked List compared to an Array?", options: ["It uses more memory due to pointers.", "It does not allow for dynamic resizing.", "Insertion at the head is O(N).", "It is impossible to reverse."] },
+            { id: 32, type: "mc", q: "Which operation is O(1) for a Doubly Linked List but O(N) for a Singly Linked List (assuming you have a pointer to the node to be removed)?", options: ["Insertion at the front", "Removal of the tail node", "Searching for a value", "Traversing the list"] },
+            { id: 40, type: "mc", q: "What is the height of a perfect binary tree with 7 nodes?", options: ["2", "3", "7", "4"] },
+            { id: 41, type: "mc", q: "What is the 'Base Case' in a recursive function?", options: ["The part of the function that calls itself.", "The condition under which the recursion stops to prevent an infinite loop.", "The main loop that iterates through the data.", "The first line of the function declaration."] },
+            { id: 43, type: "mc", q: "What is the time complexity of the following code? for (int i=0; i<n; i++) { for (int j=0; j<n; j++) { cout << i+j; } }", options: ["O(N)", "O(N log N)", "O(N^2)", "O(1)"] },
+            { id: 48, type: "mc", q: "Which data structure uses the 'LIFO' (Last-In, First-Out) principle?", options: ["Queue", "Deque", "Stack", "Priority Queue"] },
+            { id: 54, type: "mc", q: "In a Binary Search Tree, where would you find the largest element?", options: ["The root node.", "The leftmost leaf node.", "The rightmost leaf/node.", "In the middle level."] },
+            { id: 57, type: "mc", q: "What is the 'Pivot' in the context of Quick Sort?", options: ["The first element of the array only.", "An element used to partition the array into two sub-arrays.", "The temporary variable used for swapping.", "The middle index of the array."] },
+            { id: 64, type: "mc", q: "Which of the following is true about a Hash Table?", options: ["It keeps elements in sorted order.", "It provides O(1) average time complexity for search, insert, and delete.", "It is a type of binary tree.", "It is only useful for storing strings."] },
+            { id: 68, type: "mc", q: "What is the result of type(5.0) in Python?", options: ["class 'int'", "class 'float'", "class 'double'", "class 'number'"] },
+            { id: 69, type: "mc", q: "What does the 'Search' property of a BST state?", options: ["Every node is greater than its parent.", "Left child < Parent < Right child.", "All leaves are at the same level.", "The tree is always balanced."] },
+            { id: 70, type: "mc", q: "Which of these is an 'In-place' sorting algorithm?", options: ["Merge Sort", "Bubble Sort", "Both Merge and Bubble", "Neither"] },
+            { id: 76, type: "mc", q: "Which data structure is best for checking balanced parentheses in an expression?", options: ["Hash Table", "Queue", "Stack", "BST"] },
+            { id: 78, type: "mc", q: "In C++, what is a 'Constructor'?", options: ["A function used to delete an object.", "A special member function that initializes an object.", "A keyword used to define a new class.", "A loop that builds an array."] },
+            { id: 92, type: "mc", q: "Which of the following is an example of an 'Abstract Data Type' (ADT)?", options: ["An Integer", "A Pointer", "A Stack", "A float"] },
+            { id: 99, type: "mc", q: "In C++, what does the const keyword signify in 'void printData() const;'?", options: ["The function returns a constant value.", "The function cannot modify any member variables of the class.", "The function can only be called once.", "The function is static."] },
+            { id: 100, type: "mc", q: "If you are implementing a stack using a linked list, where is the most efficient place to 'Push' and 'Pop'?", options: ["At the tail (end)", "At the head (front)", "In the middle", "It doesn't matter"] },
+            { id: 101, type: "mc", q: "Which of these is a 'Divide and Conquer' algorithm?", options: ["Bubble Sort", "Insertion Sort", "Quick Sort", "Selection Sort"] },
+            { id: 109, type: "tf", q: "True or False: In a Complete Binary Tree, every leaf node must be at the same depth." },
+            { id: 111, type: "mc", q: "In C++, what is the difference between delete and delete[]?", options: ["delete is for pointers; delete[] is for integers.", "delete is for single objects; delete[] is for arrays of objects.", "delete[] is faster than delete.", "There is no difference in modern C++."] },
+            { id: 112, type: "mc", q: "What is the worst-case time complexity of Merge Sort?", options: ["O(N log N)", "O(N^2)", "O(N)", "O(log N)"] },
+            { id: 115, type: "mc", q: "In Python, how do you handle exceptions?", options: ["try...except", "if...else", "catch...throw", "attempt...fail"] },
+            { id: 117, type: "mc", q: "Which of the following is NOT a dynamic data structure?", options: ["Linked List", "Vector", "Fixed-size Array", "Binary Search Tree"] },
+            { id: 120, type: "mc", q: "Which complexity is better for a very large N: O(N log N) or O(N^2)?", options: ["O(N^2)", "O(N log N)", "They are the same.", "It depends on the hardware."] },
+            { id: 121, type: "mc", q: "What is the average time complexity for searching a key in a Python dictionary or C++ unordered_map?", options: ["O(N)", "O(log N)", "O(1)", "O(N log N)"] },
+            { id: 122, type: "mc", q: "In the context of a Dictionary, what is the purpose of a 'Hash Function'?", options: ["To sort the keys in alphabetical order.", "To convert a key into a specific array index.", "To compress the data to save disk space.", "To encrypt the data for security."] },
+            { id: 123, type: "mc", q: "Which of the following can be used as a key in a Python dictionary?", options: ["A list: [1, 2, 3]", "A dictionary: {'a': 1}", "A tuple: (1, 2, 3)", "A set: {1, 2, 3}"] },
+            { id: 124, type: "mc", q: "What happens during 'Rehashing' in a dictionary implementation?", options: ["The keys are renamed to avoid collisions.", "The underlying array is resized (usually doubled) and all existing items are moved to new indices.", "The hash function is deleted and replaced with a simpler one.", "All values in the dictionary are set to None."] },
+            { id: 125, type: "mc", q: "In 'Separate Chaining,' if multiple keys hash to the same index, they are typically stored in:", options: ["A secondary hash table.", "A linked list or a small balanced tree at that index.", "The next available empty slot in the main array.", "A stack."] },
+            { id: 126, type: "mc", q: "Which Python dictionary method returns a view of all key-value pairs?", options: [".keys()", ".values()", ".items()", ".pairs()"] },
+            { id: 127, type: "mc", q: "What is 'Primary Clustering' in a Hash Table?", options: ["A benefit of using linked lists for collisions.", "A phenomenon in linear probing where long runs of occupied slots build up, slowing down searches.", "The process of grouping similar keys together.", "A way to organize data in a Binary Search Tree."] },
+            { id: 128, type: "mc", q: "What is the result of trying to access a non-existent key in a Python dictionary using my_dict[key]?", options: ["It returns None.", "It returns 0.", "It raises a KeyError.", "It creates the key with a value of None."] },
+            { id: 129, type: "mc", q: "How does the .get(key, default) method in Python differ from standard bracket access?", options: ["It is faster.", "It returns a default value instead of raising an error if the key is missing.", "It can only be used for string keys.", "It deletes the key after reading it."] },
+            { id: 131, type: "mc", q: "In a binary tree, what is the 'Depth' of a node?", options: ["The number of edges from the node to the deepest leaf.", "The number of edges from the root to that specific node.", "The total number of nodes in the tree.", "The number of children the node has."] },
+            { id: 133, type: "mc", q: "A node that has the same parent as another node is called a:", options: ["Child", "Ancestor", "Sibling", "Descendant"] },
+            { id: 135, type: "mc", q: "What is the height of a tree consisting of only a single root node?", options: ["-1", "1", "0", "2"] },
+            { id: 136, type: "mc", q: "Which of the following describes a 'Full Binary Tree'?", options: ["Every level is completely filled.", "Every node has either 0 or 2 children.", "All leaves are at the same depth.", "The tree is perfectly balanced."] },
+            { id: 137, type: "tf", q: "True or False: A 'Perfect Binary Tree' is always a 'Complete Binary Tree'." },
+            { id: 138, type: "mc", q: "What is the defining characteristic of a 'Complete Binary Tree'?", options: ["Every node has exactly two children.", "Every level is full, except possibly the last, which is filled from left to right with no gaps.", "All nodes are in the left subtree.", "It has the minimum possible number of nodes for its height."] },
+            { id: 142, type: "mc", q: "A 'Complete Binary Tree' is missing its rightmost node on the last level. Is it still a Complete Binary Tree?", options: ["Yes, because nodes are still filled from the left without gaps.", "No, because all levels must be full.", "Only if it is also a Full Tree.", "Only if the root has two children."] },
+            { id: 144, type: "mc", q: "In a 'Full Binary Tree' with 11 nodes, how many of those are leaf nodes?", options: ["5", "6", "10", "1"] },
+            { id: 145, type: "tf", q: "True or False: Every 'Full Binary Tree' is also a 'Complete Binary Tree'." },
+            { id: 147, type: "mc", q: "If a tree is 'Perfect' and has a height of 3, how many total nodes does it have?", options: ["7", "8", "15", "16"] },
+            { id: 150, type: "mc", q: "Can a tree be 'Full' but NOT 'Complete'?", options: ["Yes, if a node has two children that are leaves, but those leaves are not at the leftmost available spots of the last level.", "No, Full trees are a subset of Complete trees.", "Yes, but only if the tree is empty.", "No, they are the same thing."] },
+            { id: 151, type: "mc", q: "Why is a Hash Table lookup O(N) in the absolute worst case?", options: ["Because the hash function is too slow.", "Because all keys might collide into a single bucket (forming a long list).", "Because the table might be empty.", "Because the array size is too large."] },
+            { id: 157, type: "mc", q: "What happens in a dictionary when you assign a value to an existing key?", options: ["It creates a duplicate key.", "It ignores the command.", "It overwrites the old value with the new value.", "It throws an error."] },
+            { id: 160, type: "tf", q: "True or False: The root of a tree is at Depth 0 and Height H (where H is the max depth)." },
+            { id: 161, type: "mc", q: "What is the output of this Python code? class Test: def __init__(self, val): self.val=val; a=Test(10); b=a; b.val=20; print(a.val)", options: ["10", "20", "None", "Error"] },
+            { id: 163, type: "mc", q: "Analyze this recursive Python function: def func(n): if n<=1: return 1 return n + func(n-1). What does func(5) return?", options: ["5", "10", "15", "25"] },
+            { id: 165, type: "mc", q: "What is the time complexity of this nested loop? for (int i=1; i<=n; i=i*2) { cout << i; }", options: ["O(N)", "O(N^2)", "O(log N)", "O(1)"] },
+            { id: 172, type: "mc", q: "Which data structure is used by the compiler to manage function calls and local variables?", options: ["Queue", "Heap", "Stack", "Linked List"] },
+            { id: 177, type: "mc", q: "If you use a Doubly Linked List to implement a Deque, which operation is O(1)?", options: ["push_front", "pop_back", "peek_front", "All of the above"] },
+            { id: 182, type: "mc", q: "In Python, what does list(range(5)) produce?", options: ["[1, 2, 3, 4, 5]", "[0, 1, 2, 3, 4, 5]", "[0, 1, 2, 3, 4]", "[5, 4, 3, 2, 1]"] },
+            { id: 186, type: "mc", q: "In C++, which header file is required to use std::vector?", options: ["array", "list", "vector", "iostream"] },
+            { id: 189, type: "mc", q: "In Python, what is the output of len({1, 2, 2, 3})?", options: ["4", "3", "2", "Error"] },
+            { id: 191, type: "mc", q: "What is the 'successor' of a node in a BST?", options: ["The smallest node in its right subtree.", "The largest node in its left subtree.", "Its right child.", "Its parent."] },
+            { id: 193, type: "mc", q: "What is a 'Collision' in a Hash Table?", options: ["When two keys are identical.", "When two different keys hash to the same index.", "When the array runs out of space.", "When the hash function returns a negative number."] },
+            { id: 197, type: "mc", q: "What is the 'best case' time complexity of Quick Sort?", options: ["O(N)", "O(N log N)", "O(N^2)", "O(log N)"] },
+            { id: 199, type: "mc", q: "What does 'FIFO' stand for?", options: ["First-In, First-Out", "Fast-In, Fast-Out", "Final-Input, First-Output", "Filter-In, Filter-Out"] }
+        ];
+
+        let studentData = { name: "", id: "", startTime: null, answers: [] };
+        let timerInterval;
+
+        function startExam() {
+            const name = document.getElementById('student-name').value;
+            const id = document.getElementById('student-id').value;
+            if (!name || !id) return alert("Enter details.");
+            studentData.name = name;
+            studentData.id = id;
+            studentData.startTime = new Date();
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('exam-screen').classList.remove('hidden');
+            renderQuestions();
+            startTimer();
+        }
+
+        function startTimer() {
+            let seconds = 0;
+            timerInterval = setInterval(() => {
+                seconds++;
+                const m = Math.floor(seconds/60).toString().padStart(2,'0');
+                const s = (seconds%60).toString().padStart(2,'0');
+                document.getElementById('timer').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function renderQuestions() {
+            const list = document.getElementById('questions-list');
+            list.innerHTML = examQuestions.map((q, idx) => `
+                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 class="text-lg font-semibold mb-4"><span class="text-blue-600 mr-2">Q${idx+1}.</span>${q.q}</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        ${q.type === 'tf' ? 
+                            ['True', 'False'].map(opt => `<div onclick="selectAnswer(${idx}, '${opt}')" class="option-card cursor-pointer border rounded-lg p-3 transition q-idx-${idx}" data-val="${opt}">${opt}</div>`).join('') :
+                            q.options.map((opt, i) => `<div onclick="selectAnswer(${idx}, ${i})" class="option-card cursor-pointer border rounded-lg p-3 transition q-idx-${idx}" data-val="${i}">${opt}</div>`).join('')
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectAnswer(index, value) {
+            studentData.answers[index] = value;
+            document.querySelectorAll(`.q-idx-${index}`).forEach(el => el.classList.remove('selected'));
+            const selectedEl = Array.from(document.querySelectorAll(`.q-idx-${index}`)).find(el => el.dataset.val == value);
+            if (selectedEl) selectedEl.classList.add('selected');
+        }
+
+        function showSubmitModal() { document.getElementById('submit-modal').classList.remove('hidden'); }
+        function closeSubmitModal() { document.getElementById('submit-modal').classList.add('hidden'); }
+
+        async function submitExam() {
+            clearInterval(timerInterval);
+            closeSubmitModal();
+            document.getElementById('exam-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+
+            const keys = getAnswerList();
+            let correctCount = 0;
+            examQuestions.forEach((q, idx) => {
+                if (studentData.answers[idx] === keys[idx]) correctCount++;
+            });
+            const score = Math.round((correctCount / examQuestions.length) * 100);
+
+            try {
+                const prompt = `Grade student ${studentData.name}. Score: ${score}% on ${examQuestions.length} questions. Provide 2 sentences feedback.`;
+                const feedback = await callGemini(prompt);
+                const emailSent = await sendEmail(score, feedback);
+                displayResult(score, feedback, emailSent);
+            } catch (err) {
+                displayResult(score, "Processing feedback...", false);
+            }
+        }
+
+        async function sendEmail(score, feedback) {
+            try {
+                const params = {
+                    professor_email: PROFESSOR_EMAIL,
+                    student_name: studentData.name,
+                    student_id: studentData.id,
+                    score: score + "%",
+                    feedback: feedback,
+                    duration: document.getElementById('timer').innerText,
+                    total_questions: examQuestions.length
+                };
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
+                return true;
+            } catch (e) { return false; }
+        }
+
+        async function callGemini(q) {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: q }] }] })
+            });
+            const d = await res.json();
+            return d.candidates?.[0]?.content?.parts?.[0]?.text || "Grade recorded.";
+        }
+
+        function displayResult(score, feedback, emailSent) {
+            document.getElementById('grading-status').classList.add('hidden');
+            document.getElementById('report-container').classList.remove('hidden');
+            document.getElementById('score-badge').innerText = `${score}%`;
+            document.getElementById('ai-feedback').innerText = feedback;
+            const msg = document.getElementById('email-status-msg');
+            msg.innerText = emailSent ? "✓ Result sent to professor." : "⚠ Email failed. Please copy manually.";
+            msg.className = `mb-4 p-3 rounded-md text-sm font-medium ${emailSent ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`;
+            window.reportData = `REPORT: ${studentData.name} (${studentData.id})\nScore: ${score}%\nFeedback: ${feedback}`;
+        }
+
+        function copyReport() {
+            const el = document.createElement("textarea");
+            el.value = window.reportData;
+            document.body.appendChild(el); el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            document.getElementById('copy-msg').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
