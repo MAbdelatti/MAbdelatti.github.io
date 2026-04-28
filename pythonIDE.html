@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 3 Interpreter</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+<!-- CodeMirror 5 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<!-- CodeMirror hint addon (classic autocomplete) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/anyword-hint.min.js"></script>
+
+<style>
+  :root {
+    --bg:       #0b0e13;
+    --surface:  #111720;
+    --border:   #1e2d40;
+    --gutter:   #0d1520;
+    --text:     #c9d1d9;
+    --dim:      #3d5068;
+    --accent:   #39d353;
+    --accent2:  #58a6ff;
+    --warn:     #f85149;
+    --yellow:   #e3b341;
+    --header-h: 44px;
+    --btn-r:    4px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 10px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 4px;
+  }
+
+  .usage-note {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    color: var(--dim);
+    margin-left: 8px;
+    white-space: nowrap;
+    opacity: 0.95;
+  }
+  .usage-note .name { color: var(--accent); font-weight: 700; margin-left: 6px; }
+
+  .sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+
+  #pkg-badges { display: flex; gap: 5px; }
+  .pkg-badge {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: var(--gutter);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    transition: all .5s;
+  }
+  .pkg-badge.loaded { color: var(--accent2); border-color: #1a3558; background: #0a1a30; }
+
+  #status-pill {
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: var(--gutter);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    transition: all .3s;
+    margin-left: auto;
+  }
+  #status-pill.ready   { color: var(--accent);  border-color: #1e4a2a; background: #0d2016; }
+  #status-pill.running { color: var(--yellow);  border-color: #4a3a10; background: #201a08; }
+  #status-pill.error   { color: var(--warn);    border-color: #4a1a1a; background: #200d0d; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 12px;
+    border-radius: var(--btn-r);
+    border: 1px solid transparent;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, opacity .15s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  #btn-run  { background: #1a3a22; border-color: #2a5a34; color: var(--accent); }
+  #btn-run:hover:not(:disabled) { background: #1e4a28; border-color: var(--accent); }
+
+  #btn-clear { background: var(--gutter); border-color: var(--border); color: var(--dim); }
+  #btn-clear:hover { background: #1a2230; border-color: #2e4060; color: var(--text); }
+
+  #btn-save  { background: var(--gutter); border-color: var(--border); color: var(--dim); }
+  #btn-save:hover { background: #1a2230; border-color: var(--accent2); color: var(--accent2); }
+
+  .kbd {
+    background: var(--gutter); border: 1px solid var(--border);
+    border-radius: 3px; padding: 1px 5px; font-size: 10px; color: var(--dim);
+  }
+  #kbd-hint { font-size: 10px; color: var(--dim); }
+
+  /* ── MAIN ── */
+  #main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  #editor-wrap {
+    flex: 1 1 58%;
+    display: flex;
+    flex-direction: column;
+    min-height: 100px;
+  }
+
+  .pane-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    color: var(--dim); padding: 5px 12px 4px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    text-transform: uppercase; flex-shrink: 0;
+  }
+
+  #cm-host { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* ── CODEMIRROR ── */
+  .CodeMirror {
+    flex: 1;
+    height: 100% !important;
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 13px !important;
+    line-height: 20px !important;
+  }
+  .CodeMirror-scroll { height: 100%; }
+  .CodeMirror-gutters  { background: var(--gutter) !important; border-right: 1px solid var(--border) !important; }
+  .CodeMirror-linenumber { color: var(--dim) !important; padding: 0 10px 0 8px !important; min-width: 30px !important; }
+  .CodeMirror-activeline-background { background: #131d2a !important; }
+  .CodeMirror-cursor   { border-left: 2px solid var(--accent) !important; }
+  .CodeMirror-selected { background: #1d3a5c !important; }
+  .CodeMirror-matchingbracket { color: var(--accent) !important; border-bottom: 1px solid var(--accent); font-weight: bold; }
+
+  /* ── PYTHON SYNTAX COLORS ── */
+  .cm-keyword  { color: #ff7b72 !important; font-weight: 600; }
+  .cm-builtin  { color: #ffa657 !important; }
+  .cm-string   { color: #a5d6ff !important; }
+  .cm-string-2 { color: #a5d6ff !important; }
+  .cm-number   { color: #79c0ff !important; }
+  .cm-comment  { color: #6e8a9a !important; font-style: italic; }
+  .cm-operator { color: #ff7b72 !important; }
+  .cm-variable { color: var(--text) !important; }
+  .cm-variable-2 { color: #e2c08d !important; }
+  .cm-def      { color: #d2a8ff !important; font-weight: 600; }
+  .cm-meta     { color: #ffa657 !important; }
+  .cm-error    { color: var(--warn) !important; }
+  .cm-atom     { color: #79c0ff !important; }
+
+  /* ── DRAG HANDLE ── */
+  #drag-handle {
+    height: 6px; background: var(--surface);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    cursor: ns-resize; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #drag-handle::after {
+    content: ''; width: 32px; height: 2px;
+    background: var(--border); border-radius: 2px;
+  }
+  #drag-handle:hover { background: #1a2535; }
+  #drag-handle:hover::after { background: var(--dim); }
+
+  /* ── OUTPUT ── */
+  #output-wrap { flex: 1 1 42%; display: flex; flex-direction: column; min-height: 70px; overflow: hidden; }
+  #output {
+    flex: 1; overflow-y: auto;
+    padding: 10px 14px; font-size: 13px; line-height: 20px;
+    background: var(--bg); white-space: pre-wrap; word-break: break-word;
+  }
+  #output:empty::before { content: '// output will appear here'; color: var(--dim); font-style: italic; }
+  .out-line { color: var(--text); }
+  .out-err  { color: var(--warn); }
+  .out-ok   { color: var(--accent); font-weight: 600; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+  /* ── LOADER ── */
+  #loader {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    z-index: 100; transition: opacity .5s;
+  }
+  #loader.hidden { opacity: 0; pointer-events: none; }
+
+  .spin {
+    width: 26px; height: 26px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #load-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; color: var(--dim);
+    min-width: 260px; text-align: center;
+  }
+  #load-label .hi  { color: var(--accent); }
+  #load-label .pkg { color: var(--accent2); }
+
+  #load-bar { width: 260px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+  #load-fill { height: 100%; background: var(--accent); width: 0%; transition: width .4s ease; }
+
+  #load-steps { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--dim); min-width: 200px; }
+  .load-step  { display: flex; align-items: center; gap: 8px; }
+  .load-step.done   { color: var(--accent); }
+  .load-step.active { color: var(--yellow); }
+  .step-ico { width: 14px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="spin"></div>
+  <div id="load-label">Initializing <span class="hi">Python 3</span> runtime…</div>
+  <div id="load-bar"><div id="load-fill"></div></div>
+  <div id="load-steps">
+    <div class="load-step active" id="step-py"><span class="step-ico">◌</span>Loading Pyodide…</div>
+    <div class="load-step"        id="step-np"><span class="step-ico">·</span>numpy</div>
+    <div class="load-step"        id="step-pd"><span class="step-ico">·</span>pandas</div>
+    <div class="load-step"        id="step-mpl"><span class="step-ico">·</span>matplotlib</div>
+    <div class="load-step"        id="step-stdlib"><span class="step-ico">·</span>stdlib (os, sys, math, random, datetime, csv)</div>
+  </div>
+    <div style="margin-top:8px; text-align:center;">
+      <button class="btn" id="btn-retry" style="display:none">Retry loading runtime</button>
+    </div>
+  </div>
+
+<div id="app">
+
+  <div id="topbar">
+    <div class="logo">
+      <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+        <path d="M9 1.5C5.27 1.5 3.75 3.19 3.75 5.25v1.5H9v.75H2.63C1.48 7.5.75 8.5.75 10.5s.93 3.38 2.07 3.75l.68.25V13.5c0-.41.34-.75.75-.75h7.5c1.24 0 2.25-1.01 2.25-2.25v-3c0-1.24-1.01-2.25-2.25-2.25H8.25V4.5c0-.41.34-.75.75-.75h5.25C15.41 3.75 17.25 5.09 17.25 7.5v3c0 2.41-1.84 3.75-3 3.75H9" stroke="#39d353" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="6" cy="5.25" r=".75" fill="#39d353"/>
+        <circle cx="12" cy="12.75" r=".75" fill="#58a6ff"/>
+      </svg>
+      python3
+    </div>
+    <div class="usage-note">For Academic use — <span class="name">Marwan Abdelatti</span></div>
+    <div class="sep"></div>
+    <button class="btn" id="btn-run" disabled title="Run (Ctrl+Enter)">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><path d="M2 1.5l7 4-7 4V1.5z"/></svg>
+      Run
+    </button>
+    <button class="btn" id="btn-clear">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 9.5l8-8M9.5 9.5l-8-8"/></svg>
+      Clear
+    </button>
+    <button class="btn" id="btn-save">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5.5 1v6M2.5 5l3 3 3-3M1.5 10h8"/></svg>
+      Save
+    </button>
+    <div class="sep"></div>
+    <div id="pkg-badges">
+      <span class="pkg-badge" id="badge-numpy">numpy</span>
+      <span class="pkg-badge" id="badge-pandas">pandas</span>
+      <span class="pkg-badge" id="badge-matplotlib">matplotlib</span>
+      <span class="pkg-badge" id="badge-stdlib" title="os, sys, math, random, datetime, csv">stdlib</span>
+    </div>
+    <span id="kbd-hint"><span class="kbd">Ctrl</span>+<span class="kbd">↵</span> run &nbsp;|&nbsp; <span class="kbd">Ctrl</span>+<span class="kbd">/</span> comment</span>
+    <div id="status-pill">loading…</div>
+  </div>
+
+  <div id="main">
+
+    <div id="editor-wrap">
+      <div class="pane-label">editor</div>
+      <div id="cm-host"></div>
+    </div>
+
+    <div id="drag-handle" title="Drag to resize"></div>
+
+    <div id="output-wrap">
+      <div class="pane-label">output</div>
+      <div id="output"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+// ── ELEMENTS ─────────────────────────────────────────────────
+const outputEl   = document.getElementById('output');
+const statusEl   = document.getElementById('status-pill');
+const btnRun     = document.getElementById('btn-run');
+const btnClear   = document.getElementById('btn-clear');
+const btnSave    = document.getElementById('btn-save');
+const loader     = document.getElementById('loader');
+const loadFill   = document.getElementById('load-fill');
+const editorWrap = document.getElementById('editor-wrap');
+
+let pyodide = null;
+
+// ── CODEMIRROR ───────────────────────────────────────────────
+// Use a safe global STARTER so reloading the script doesn't redeclare a
+// block-scoped variable (avoids "Cannot redeclare block-scoped variable 'STARTER'.").
+window.STARTER = window.STARTER ?? `# Write your Python code here
+# Press Ctrl+Enter (or click Run) to execute
+# Use Ctrl+Space for autocomplete suggestions
+
+# Example:
+# def hello(name):
+#     print(f"Hello, {name}!")
+
+# Start coding below this line
+`;
+
+const editor = CodeMirror(document.getElementById('cm-host'), {
+  value: window.STARTER,
+  mode: 'python',
+  lineNumbers: true,
+  matchBrackets: true,
+  autoCloseBrackets: true,
+  styleActiveLine: true,
+  indentUnit: 4,
+  tabSize: 4,
+  indentWithTabs: false,
+  lineWrapping: false,
+  extraKeys: {
+    'Tab':        cm => cm.execCommand('indentMore'),
+    'Shift-Tab':  cm => cm.execCommand('indentLess'),
+    'Ctrl-Enter': () => runCode(),
+    'Cmd-Enter':  () => runCode(),
+    'Ctrl-/':     cm => cm.execCommand('toggleComment'),
+    'Cmd-/':      cm => cm.execCommand('toggleComment'),
+  },
+});
+editor.setSize('100%', '100%');
+
+// ── CLASSIC AUTOCOMPLETE (non-AI) ─────────────────────────
+// Provide Python keywords, builtins and words from the document
+CodeMirror.registerHelper('hint', 'python', function(cm) {
+  const cur = cm.getCursor();
+  const token = cm.getTokenAt(cur);
+  const start = token.start;
+  const end = cur.ch;
+  const curWord = token.string.slice(0, end - start);
+
+  const pyKeywords = (
+    'False None True and as assert async await break class continue ' +
+    'def del elif else except finally for from global if import in is ' +
+    'lambda nonlocal not or pass raise return try while with yield'
+  ).split(/\s+/);
+  const pyBuiltins = (
+    'abs all any ascii bin bool bytearray bytes callable chr classmethod ' +
+    'compile complex dict dir divmod enumerate eval filter float format ' +
+    'frozenset getattr globals hasattr hash help hex id input int isinstance ' +
+    'issubclass iter len list locals map max memoryview min next object oct ' +
+    'ord pow print property range repr reversed round set setattr slice ' +
+    'sorted staticmethod str sum super tuple type zip'
+  ).split(/\s+/);
+
+  // collect unique words from document
+  const words = new Set([...pyKeywords, ...pyBuiltins]);
+  const docWords = cm.getValue().match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+  docWords.forEach(w => words.add(w));
+
+  const list = Array.from(words).filter(w => w.startsWith(curWord) && w !== curWord).sort();
+  return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+});
+
+CodeMirror.commands.autocomplete = function(cm) {
+  cm.showHint({ hint: CodeMirror.hint.python, completeSingle: false });
+};
+
+editor.setOption('extraKeys', Object.assign({}, editor.getOption('extraKeys'), {
+  'Ctrl-Space': 'autocomplete',
+  'Cmd-Space':  'autocomplete'
+}));
+
+// show suggestions while typing letters or underscore
+editor.on('inputRead', (cm, change) => {
+  if (change.text[0] && /[A-Za-z_\.]/.test(change.text[0])) {
+    cm.showHint({ hint: CodeMirror.hint.python, completeSingle: false });
+  }
+});
+
+// ── LOADER HELPERS ───────────────────────────────────────────
+function stepMark(id, done) {
+  const el = document.getElementById(id);
+  const ico = el.querySelector('.step-ico');
+  if (done) { el.classList.remove('active'); el.classList.add('done'); ico.textContent = '✓'; }
+  else       { el.classList.add('active'); ico.textContent = '◌'; }
+}
+
+// ── PYODIDE + PACKAGES ───────────────────────────────────────
+// Initialize Pyodide with a timeout and retry support
+async function initPyodide(timeoutMs = 20000) {
+  try {
+    loadFill.style.width = '10%';
+    document.getElementById('btn-retry').style.display = 'none';
+
+    const loadPromise = loadPyodide({
+      stdout: t => appendOutput(t, 'out-line'),
+      stderr: t => appendOutput(t, 'out-err'),
+    });
+
+    // fail if Pyodide doesn't load within timeoutMs
+    pyodide = await Promise.race([
+      loadPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Pyodide load timeout')), timeoutMs))
+    ]);
+
+    stepMark('step-py', true);
+    loadFill.style.width = '35%';
+
+    // numpy
+    stepMark('step-np', false);
+    document.getElementById('load-label').innerHTML = 'Loading <span class="pkg">numpy</span>…';
+    await pyodide.loadPackage('numpy');
+    stepMark('step-np', true);
+    document.getElementById('badge-numpy').classList.add('loaded');
+    loadFill.style.width = '65%';
+
+    // pandas
+    stepMark('step-pd', false);
+    document.getElementById('load-label').innerHTML = 'Loading <span class="pkg">pandas</span>…';
+    await pyodide.loadPackage('pandas');
+    stepMark('step-pd', true);
+    document.getElementById('badge-pandas').classList.add('loaded');
+    loadFill.style.width = '80%';
+
+    // matplotlib
+    stepMark('step-mpl', false);
+    document.getElementById('load-label').innerHTML = 'Loading <span class="pkg">matplotlib</span>…';
+    try {
+      await pyodide.loadPackage('matplotlib');
+      stepMark('step-mpl', true);
+      document.getElementById('badge-matplotlib').classList.add('loaded');
+      loadFill.style.width = '95%';
+    } catch (e) {
+      console.warn('matplotlib load failed:', e);
+      stepMark('step-mpl', true);
+    }
+
+    // standard library (available via Pyodide runtime)
+    stepMark('step-stdlib', false);
+    document.getElementById('load-label').innerHTML = 'Registering <span class="pkg">stdlib</span> modules…';
+    stepMark('step-stdlib', true);
+    document.getElementById('badge-stdlib').classList.add('loaded');
+    loadFill.style.width = '100%';
+
+    await new Promise(r => setTimeout(r, 350));
+    loader.classList.add('hidden');
+    setStatus('ready', '● ready');
+    btnRun.disabled = false;
+    editor.focus();
+
+  } catch (err) {
+    console.error(err);
+    const label = document.getElementById('load-label');
+    label.innerHTML = `<span style="color:var(--warn)">Runtime load failed — ${String(err)}</span>`;
+    document.getElementById('btn-retry').style.display = 'inline-flex';
+    appendOutput('Pyodide load error: ' + (err.message || String(err)), 'out-err');
+    setStatus('error', '✗ error');
+  }
+}
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('btn-retry').style.display = 'none';
+  document.getElementById('load-label').textContent = 'Retrying Python runtime…';
+  initPyodide();
+});
+
+// start
+initPyodide();
+
+// ── STATUS ───────────────────────────────────────────────────
+function setStatus(cls, text) {
+  statusEl.className = cls;
+  statusEl.textContent = text;
+}
+
+// ── OUTPUT ───────────────────────────────────────────────────
+function appendOutput(text, cls) {
+  const d = document.createElement('div');
+  d.className = cls;
+  d.textContent = text;
+  outputEl.appendChild(d);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+function clearOutput() { outputEl.innerHTML = ''; }
+
+// ── RUN ──────────────────────────────────────────────────────
+async function runCode() {
+  if (!pyodide || btnRun.disabled) return;
+  const code = editor.getValue().trim();
+  if (!code) return;
+
+  clearOutput();
+  btnRun.disabled = true;
+  setStatus('running', '◌ running…');
+  const t0 = performance.now();
+
+  try {
+    await pyodide.runPythonAsync(code);
+    appendOutput(`\n✓ Done in ${(performance.now()-t0).toFixed(1)} ms`, 'out-ok');
+    setStatus('ready', '● ready');
+  } catch (err) {
+    appendOutput(err.message || String(err), 'out-err');
+    appendOutput(`\n✗ Error after ${(performance.now()-t0).toFixed(1)} ms`, 'out-err');
+    setStatus('error', '✗ error');
+  }
+  btnRun.disabled = false;
+}
+
+btnRun.addEventListener('click', runCode);
+btnClear.addEventListener('click', clearOutput);
+
+// ── SAVE ─────────────────────────────────────────────────────
+btnSave.addEventListener('click', () => {
+  const code = editor.getValue();
+  if (!code.trim()) return;
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([code], { type: 'text/x-python' })),
+    download: `snippet_${new Date().toISOString().slice(0,10)}.py`,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── DRAG RESIZE ──────────────────────────────────────────────
+const handle = document.getElementById('drag-handle');
+let dragging = false, startY = 0, startH = 0;
+
+handle.addEventListener('mousedown', e => {
+  dragging = true; startY = e.clientY;
+  startH = editorWrap.getBoundingClientRect().height;
+  document.body.style.cssText = 'user-select:none;cursor:ns-resize';
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  editorWrap.style.flex = 'none';
+  editorWrap.style.height = Math.max(80, startH + e.clientY - startY) + 'px';
+  editor.refresh();
+});
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  document.body.style.cssText = '';
+});
+</script>
+</body>
+</html>
