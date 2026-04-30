@@ -548,6 +548,23 @@ async function runCode() {
   const t0 = performance.now();
 
   try {
+    // Provide a simple browser-backed `input()` shim using JS `prompt()` so
+    // user code that calls `input()` works in the Pyodide/browser environment.
+    try {
+      pyodide.runPython(`
+import builtins
+from js import prompt
+def __prompt_input(s=''):
+    r = prompt(s)
+    if r is None:
+        raise EOFError("Input cancelled by user")
+    return str(r)
+builtins.input = __prompt_input
+`);
+    } catch (shimErr) {
+      console.warn('input() shim failed:', shimErr);
+    }
+
     await pyodide.runPythonAsync(code);
     appendOutput(`\n✓ Done in ${(performance.now()-t0).toFixed(1)} ms`, 'out-ok');
     setStatus('ready', '● ready');
