@@ -271,6 +271,7 @@
     <div class="load-step active" id="step-py"><span class="step-ico">◌</span>Loading Pyodide…</div>
     <div class="load-step"        id="step-np"><span class="step-ico">·</span>numpy</div>
     <div class="load-step"        id="step-pd"><span class="step-ico">·</span>pandas</div>
+    <div class="load-step"        id="step-sp"><span class="step-ico">·</span>sympy</div>
     <div class="load-step"        id="step-mpl"><span class="step-ico">·</span>matplotlib</div>
     <div class="load-step"        id="step-stdlib"><span class="step-ico">·</span>stdlib (os, sys, math, random, datetime, csv)</div>
   </div>
@@ -308,6 +309,7 @@
     <div id="pkg-badges">
       <span class="pkg-badge" id="badge-numpy">numpy</span>
       <span class="pkg-badge" id="badge-pandas">pandas</span>
+      <span class="pkg-badge" id="badge-sympy">sympy</span>
       <span class="pkg-badge" id="badge-matplotlib">matplotlib</span>
       <span class="pkg-badge" id="badge-stdlib" title="os, sys, math, random, datetime, csv">stdlib</span>
     </div>
@@ -474,6 +476,19 @@ async function initPyodide(timeoutMs = 20000) {
     stepMark('step-pd', true);
     document.getElementById('badge-pandas').classList.add('loaded');
     loadFill.style.width = '80%';
+
+    // sympy
+    stepMark('step-sp', false);
+    document.getElementById('load-label').innerHTML = 'Loading <span class="pkg">sympy</span>…';
+    try {
+      await pyodide.loadPackage('sympy');
+      stepMark('step-sp', true);
+      document.getElementById('badge-sympy').classList.add('loaded');
+      loadFill.style.width = '88%';
+    } catch (e) {
+      console.warn('sympy load failed:', e);
+      stepMark('step-sp', true);
+    }
 
     // matplotlib
     stepMark('step-mpl', false);
