@@ -209,7 +209,7 @@
   #drag-handle:hover { background: #1a2535; }
   #drag-handle:hover::after { background: var(--dim); }
 
-  /* ── OUTPUT ── */
+  /* ── OUTPUT & TERMINAL INPUT ── */
   #output-wrap { flex: 1 1 42%; display: flex; flex-direction: column; min-height: 70px; overflow: hidden; }
   #output {
     flex: 1; overflow-y: auto;
@@ -220,6 +220,28 @@
   .out-line { color: var(--text); }
   .out-err  { color: var(--warn); }
   .out-ok   { color: var(--accent); font-weight: 600; }
+
+  .terminal-input-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0;
+  }
+  .terminal-input {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 2px 8px;
+    outline: none;
+    flex: 1;
+    caret-color: var(--accent);
+  }
+  .terminal-input:focus {
+    box-shadow: 0 0 0 2px rgba(57, 211, 83, 0.2);
+  }
 
   /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -349,15 +371,13 @@ const editorWrap = document.getElementById('editor-wrap');
 let pyodide = null;
 
 // ── CODEMIRROR ───────────────────────────────────────────────
-// Use a safe global STARTER so reloading the script doesn't redeclare a
-// block-scoped variable (avoids "Cannot redeclare block-scoped variable 'STARTER'.").
 window.STARTER = window.STARTER ?? `# Write your Python code here
 # Press Ctrl+Enter (or click Run) to execute
 # Use Ctrl+Space for autocomplete suggestions
 
-# Example:
-# def hello(name):
-#     print(f"Hello, {name}!")
+# Example with input():
+name = input("Enter your name: ")
+print(f"Hello, {name}!")
 
 # Start coding below this line
 `;
@@ -385,7 +405,6 @@ const editor = CodeMirror(document.getElementById('cm-host'), {
 editor.setSize('100%', '100%');
 
 // ── CLASSIC AUTOCOMPLETE (non-AI) ─────────────────────────
-// Provide Python keywords, builtins and words from the document
 CodeMirror.registerHelper('hint', 'python', function(cm) {
   const cur = cm.getCursor();
   const token = cm.getTokenAt(cur);
@@ -407,7 +426,6 @@ CodeMirror.registerHelper('hint', 'python', function(cm) {
     'sorted staticmethod str sum super tuple type zip'
   ).split(/\s+/);
 
-  // collect unique words from document
   const words = new Set([...pyKeywords, ...pyBuiltins]);
   const docWords = cm.getValue().match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
   docWords.forEach(w => words.add(w));
@@ -425,7 +443,6 @@ editor.setOption('extraKeys', Object.assign({}, editor.getOption('extraKeys'), {
   'Cmd-Space':  'autocomplete'
 }));
 
-// show suggestions while typing letters or underscore
 editor.on('inputRead', (cm, change) => {
   if (change.text[0] && /[A-Za-z_\.]/.test(change.text[0])) {
     cm.showHint({ hint: CodeMirror.hint.python, completeSingle: false });
@@ -441,7 +458,6 @@ function stepMark(id, done) {
 }
 
 // ── PYODIDE + PACKAGES ───────────────────────────────────────
-// Initialize Pyodide with a timeout and retry support
 async function initPyodide(timeoutMs = 20000) {
   try {
     loadFill.style.width = '10%';
@@ -452,7 +468,6 @@ async function initPyodide(timeoutMs = 20000) {
       stderr: t => appendOutput(t, 'out-err'),
     });
 
-    // fail if Pyodide doesn't load within timeoutMs
     pyodide = await Promise.race([
       loadPromise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('Pyodide load timeout')), timeoutMs))
@@ -503,7 +518,7 @@ async function initPyodide(timeoutMs = 20000) {
       stepMark('step-mpl', true);
     }
 
-    // standard library (available via Pyodide runtime)
+    // stdlib
     stepMark('step-stdlib', false);
     document.getElementById('load-label').innerHTML = 'Registering <span class="pkg">stdlib</span> modules…';
     stepMark('step-stdlib', true);
@@ -532,7 +547,6 @@ document.getElementById('btn-retry').addEventListener('click', () => {
   initPyodide();
 });
 
-// start
 initPyodide();
 
 // ── STATUS ───────────────────────────────────────────────────
@@ -541,7 +555,7 @@ function setStatus(cls, text) {
   statusEl.textContent = text;
 }
 
-// ── OUTPUT ───────────────────────────────────────────────────
+// ── OUTPUT & TERMINAL INPUT ──────────────────────────────────
 function appendOutput(text, cls) {
   const d = document.createElement('div');
   d.className = cls;
@@ -550,6 +564,45 @@ function appendOutput(text, cls) {
   outputEl.scrollTop = outputEl.scrollHeight;
 }
 function clearOutput() { outputEl.innerHTML = ''; }
+
+function requestInput(promptText = '') {
+  return new Promise((resolve) => {
+    const line = document.createElement('div');
+    line.className = 'terminal-input-line';
+
+    if (promptText) {
+      const pSpan = document.createElement('span');
+      pSpan.style.color = 'var(--text)';
+      pSpan.textContent = promptText;
+      line.appendChild(pSpan);
+    }
+
+    const inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.className = 'terminal-input';
+    inputEl.placeholder = 'type input here & press Enter...';
+
+    line.appendChild(inputEl);
+    outputEl.appendChild(line);
+    outputEl.scrollTop = outputEl.scrollHeight;
+
+    inputEl.focus();
+
+    const focusHandler = () => inputEl.focus();
+    outputEl.addEventListener('click', focusHandler);
+
+    inputEl.addEventListener('keydown', function onKeyDown(e) {
+      if (e.key === 'Enter') {
+        const val = inputEl.value;
+        outputEl.removeEventListener('click', focusHandler);
+        line.remove();
+        appendOutput((promptText || '') + val, 'out-line');
+        resolve(val);
+      }
+    });
+  });
+}
+window.requestInput = requestInput;
 
 // ── RUN ──────────────────────────────────────────────────────
 async function runCode() {
@@ -563,22 +616,15 @@ async function runCode() {
   const t0 = performance.now();
 
   try {
-    // Provide a simple browser-backed `input()` shim using JS `prompt()` so
-    // user code that calls `input()` works in the Pyodide/browser environment.
-    try {
-      pyodide.runPython(`
+    pyodide.runPython(`
 import builtins
-from js import prompt
+from js import requestInput
+from pyodide.ffi import run_sync
 def __prompt_input(s=''):
-    r = prompt(s)
-    if r is None:
-        raise EOFError("Input cancelled by user")
+    r = run_sync(requestInput(s))
     return str(r)
 builtins.input = __prompt_input
 `);
-    } catch (shimErr) {
-      console.warn('input() shim failed:', shimErr);
-    }
 
     await pyodide.runPythonAsync(code);
     appendOutput(`\n✓ Done in ${(performance.now()-t0).toFixed(1)} ms`, 'out-ok');
